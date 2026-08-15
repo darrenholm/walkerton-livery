@@ -10,8 +10,9 @@ portal/
   lib/store.js       flat-file store for staff + activity
   lib/auth.js        scrypt passwords, signed sessions, login throttle
   lib/http.js        request/response plumbing
+  bin/staff.js       manage staff accounts from the command line
   public/            the portal pages
-  test/smoke.js      end-to-end test against a fake TTLock
+  test/              end-to-end tests against a fake TTLock
 ```
 
 No dependencies — Node 18+ built-ins only. No database.
@@ -52,6 +53,32 @@ node server.js            # http://localhost:8080
 On first boot, with no staff accounts yet, it creates one admin and prints the
 password. Sign in, change it, then add the rest of the staff from the Staff
 page.
+
+## Staff accounts from the command line
+
+Useful before the portal is running, or if nobody can get in:
+
+```bash
+node bin/staff.js list
+node bin/staff.js add "Darren Holm" darren@walkertonlivery.ca admin 'Kilmer@73'
+node bin/staff.js add "Brady" brady@walkertonlivery.ca staff 'Kilmer@73'
+node bin/staff.js password brady@walkertonlivery.ca 'new-password'
+node bin/staff.js disable brady@walkertonlivery.ca
+node bin/staff.js remove brady@walkertonlivery.ca
+```
+
+Leave the password off `add` and one is generated and printed. A password you
+type here is treated as deliberate, so the account can use it straight away;
+pass `--force-change` to make them pick their own at first sign-in instead.
+Accounts created through the Staff page always force a change, because there
+the password is a temporary one being handed over.
+
+Passwords must be at least 8 characters and cannot be all digits or start with
+an obvious word. Resetting a password or disabling an account signs that person
+out everywhere immediately.
+
+The email is the login name. It does not have to receive mail — nothing is sent
+to it — so `brady@walkertonlivery.ca` works whether or not that mailbox exists.
 
 ## Deploying
 
@@ -99,10 +126,15 @@ hidden from the portal, so nobody revokes the owner's own code by accident.
 ## Tests
 
 ```bash
-node test/smoke.js
+npm test          # or: node test/smoke.js && node test/cli.js
 ```
 
-Stands up a fake TTLock cloud API and drives the real server against a
-throwaway data file: sign-in, role boundaries, forced password change, session
-invalidation, last-admin guards, hour flooring, token refresh-and-retry, the
-activity log, and path traversal. No credentials or network needed.
+`smoke.js` stands up a fake TTLock cloud API and drives the real server against
+a throwaway data file: sign-in, role boundaries, forced password change,
+session invalidation, last-admin guards, hour flooring, token
+refresh-and-retry, the activity log, and path traversal.
+
+`cli.js` covers `bin/staff.js`: account creation, password rules, hashing,
+resets, disable/enable, and the last-admin guard.
+
+No credentials or network needed for either.

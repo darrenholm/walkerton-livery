@@ -25,11 +25,13 @@ function verifyPassword(password, salt, expected) {
 }
 
 // Rejects the passwords that actually show up on shared front-desk accounts.
+// Eight is NIST's floor for a human-chosen password and is what the Livery's
+// own accounts use; the other rules catch the genuinely weak cases.
 function passwordProblem(password) {
     const p = String(password ?? '');
-    if (p.length < 10) return 'Password must be at least 10 characters.';
+    if (p.length < 8) return 'Password must be at least 8 characters.';
     if (/^\d+$/.test(p)) return 'Password cannot be only numbers.';
-    if (/^(password|letmein|welcome|walkerton|livery)/i.test(p)) {
+    if (/^(password|letmein|welcome|walkerton|livery|qwerty|abc123)/i.test(p)) {
         return 'Password is too easy to guess.';
     }
     return null;

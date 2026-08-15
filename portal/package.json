@@ -1,0 +1,13 @@
+{
+  "name": "walkerton-livery-portal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Front-desk portal for the Walkerton Livery: guest door codes, activity log, staff accounts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "staff": "node bin/staff.js",
+    "test": "node test/smoke.js && node test/cli.js"
+  },
+  "engines": { "node": ">=18" }
+}

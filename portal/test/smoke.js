@@ -230,6 +230,12 @@ function waitFor(url, tries = 80) {
         });
         check('short password rejected', () => assert.strictEqual(r.status, 400));
 
+        r = await call(admin, '/api/staff', {
+            method: 'POST',
+            body: JSON.stringify({ name: 'Eight', email: 'eight@walkertonlivery.ca', role: 'staff', password: 'Kilmer@73' }),
+        });
+        check('an 8-character mixed password is accepted', () => assert.strictEqual(r.status, 200));
+
         console.log('\nforced password change');
         r = await login('desk@walkertonlivery.ca', 'victoria-2026');
         const deskToken = r.body.token;
