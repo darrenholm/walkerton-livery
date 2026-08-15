@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livery Staff Portal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%94%91</text></svg>">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="wrap" id="main" hidden>
+    <div class="page-title">
+        <h1 id="hello">Welcome</h1>
+        <p id="stamp"></p>
+    </div>
+
+    <div id="err" class="err hide"></div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card" style="margin-top:20px">
+        <h2>Staying right now</h2>
+        <div id="staying"><div class="empty">Checking the locks…</div></div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+const { el, api, escapeHtml, fmtDay, showError } = Portal;
+
+const TILES = [
+    { href: 'codes.html', title: 'Room codes',
+      body: 'Create a door code for a guest, or revoke one.',
+      icon: "M5 11h14v10H5zM8 11V7a4 4 0 018 0v4M12 15v2" },
+    { href: 'activity.html', title: 'Activity',
+      body: 'Every code issued or revoked, and by whom.',
+      icon: "M3 12h4l3 8 4-16 3 8h4" },
+    { href: 'staff.html', title: 'Staff', admin: true,
+      body: 'Add or remove staff and reset passwords.',
+      icon: "M16 20v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 6a3 3 0 100 6 3 3 0 000-6M18 8v6M21 11h-6" },
+];
+
+(async () => {
+    const me = await Portal.start('index.html');
+    if (!me) return;
+    el('main').hidden = false;
+
+    const hour = new Date().getHours();
+    const part = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
+    el('hello').textContent = `Good ${part.toLowerCase()}, ${me.name.split(' ')[0]}`;
+    el('stamp').textContent = new Date().toLocaleDateString('en-CA',
+        { weekday: 'long', month: 'long', day: 'numeric' });
+
+    el('tiles').innerHTML = TILES
+        .filter(t => !t.admin || me.role === 'admin')
+        .map(t => `
+          <a class="tile" href="${t.href}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${t.icon}"/></svg>
+            <h3>${t.title}</h3><p>${t.body}</p>
+          </a>`).join('');
+
+    loadStaying();
+})();
+
+// Walks every room so the front desk can see, at a glance, which units are
+// occupied tonight without opening each one.
+async function loadStaying() {
+    try {
+        const { rooms } = await api('/api/rooms');
+        const now = Date.now();
+        const results = await Promise.all(rooms.map(async (room) => {
+            try {
+                const { codes } = await api('/api/passcodes?lockId=' + room.lockId);
+                return { room, current: codes.filter(c => c.active) };
+            } catch {
+                return { room, current: null };
+            }
+        }));
+
+        const occupied = results.filter(r => r.current && r.current.length);
+        if (!occupied.length) {
+            el('staying').innerHTML = '<div class="empty">No rooms have an active code right now.</div>';
+            return;
+        }
+
+        el('staying').innerHTML = `
+          <div class="stack"><table>
+            <thead><tr><th>Room</th><th>Guest</th><th>Until</th><th>Code</th></tr></thead>
+            <tbody>${occupied.flatMap(({ room, current }) => current.map(c => `
+              <tr>
+                <td data-l="Room"><b>${escapeHtml(room.name)}</b></td>
+                <td data-l="Guest">${escapeHtml(c.name) || '<span class="dim">—</span>'}</td>
+                <td data-l="Until" class="dim">${fmtDay(c.endDate)}</td>
+                <td data-l="Code" class="mono">${escapeHtml(c.passcode || '••••')}</td>
+              </tr>`)).join('')}
+            </tbody>
+          </table></div>`;
+    } catch (e) {
+        el('staying').innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+    }
+}
+</script>
+</body>
+</html>

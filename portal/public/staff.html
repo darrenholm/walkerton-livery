@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff — Livery Staff Portal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%94%91</text></svg>">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="wrap" id="main" hidden>
+    <div class="page-title">
+        <h1>Staff</h1>
+        <button class="btn" id="addBtn">Add staff member</button>
+    </div>
+
+    <div id="err" class="err hide"></div>
+
+    <div class="card">
+        <div id="list" class="stack"><div class="empty">Loading…</div></div>
+    </div>
+</div>
+
+<!-- add / reset dialog -->
+<div class="overlay" id="overlay">
+    <div class="modal">
+        <h2 id="mTitle">Add staff member</h2>
+        <div id="mErr" class="err hide"></div>
+
+        <div class="fields">
+            <div class="f wide" id="fName">
+                <label for="mName">Name</label>
+                <input id="mName" autocomplete="off">
+            </div>
+            <div class="f wide" id="fEmail">
+                <label for="mEmail">Email</label>
+                <input id="mEmail" type="email" autocapitalize="none" spellcheck="false" autocomplete="off">
+            </div>
+            <div class="f wide" id="fRole">
+                <label for="mRole">Role</label>
+                <select id="mRole">
+                    <option value="staff">Front desk — issue and revoke codes</option>
+                    <option value="admin">Admin — also manages staff</option>
+                </select>
+            </div>
+            <div class="f wide">
+                <label for="mPass">Temporary password</label>
+                <input id="mPass" autocomplete="off">
+                <span class="hint">They will be asked to change it at first sign-in.</span>
+            </div>
+        </div>
+
+        <div class="modal-btns">
+            <button class="btn btn-quiet" id="mCancel">Cancel</button>
+            <button class="btn" id="mSave">Save</button>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+const { el, api, escapeHtml, fmtStamp, showError, toast } = Portal;
+
+let staff = [];
+let mode = 'add';     // 'add' | 'reset'
+let targetId = null;
+
+(async () => {
+    const me = await Portal.start('staff.html');
+    if (!me) return;
+    if (me.role !== 'admin') { location.href = 'index.html'; return; }
+    el('main').hidden = false;
+    load();
+})();
+
+async function load() {
+    try {
+        staff = (await api('/api/staff')).staff;
+        draw();
+    } catch (e) {
+        showError(el('err'), e.message);
+    }
+}
+
+function draw() {
+    el('list').innerHTML = `
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last sign-in</th><th></th></tr></thead>
+        <tbody>${staff.map(s => `
+          <tr>
+            <td data-l="Name">
+              <b>${escapeHtml(s.name)}</b>
+              ${s.active ? '' : ' <span class="tag off">Disabled</span>'}
+              ${s.mustChangePassword ? ' <span class="tag soon">New password pending</span>' : ''}
+            </td>
+            <td data-l="Email" class="dim">${escapeHtml(s.email)}</td>
+            <td data-l="Role">${s.role === 'admin'
+                ? '<span class="tag adm">Admin</span>' : '<span class="tag past">Front desk</span>'}</td>
+            <td data-l="Last sign-in" class="dim">${s.lastLoginAt ? fmtStamp(s.lastLoginAt) : 'Never'}</td>
+            <td class="right" style="white-space:nowrap">
+              <button class="btn btn-quiet btn-sm" data-act="reset" data-id="${s.id}">Reset password</button>
+              <button class="btn btn-quiet btn-sm" data-act="toggle" data-id="${s.id}">${s.active ? 'Disable' : 'Enable'}</button>
+              <button class="btn btn-danger btn-sm" data-act="remove" data-id="${s.id}">Remove</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+}
+
+el('list').onclick = async (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const member = staff.find(s => s.id === btn.dataset.id);
+    if (!member) return;
+
+    if (btn.dataset.act === 'reset') return openReset(member);
+
+    const ask = btn.dataset.act === 'remove'
+        ? `Remove ${member.name}? Their past activity stays in the log.`
+        : `${member.active ? 'Disable' : 'Enable'} ${member.name}?`;
+    if (!confirm(ask)) return;
+
+    el('err').classList.add('hide');
+    try {
+        if (btn.dataset.act === 'remove') {
+            await api('/api/staff/remove', { method: 'POST', body: JSON.stringify({ id: member.id }) });
+            toast('Removed');
+        } else {
+            await api('/api/staff/update', {
+                method: 'POST',
+                body: JSON.stringify({ id: member.id, active: !member.active }),
+            });
+            toast(member.active ? 'Disabled' : 'Enabled');
+        }
+        load();
+    } catch (err) {
+        showError(el('err'), err.message);
+    }
+};
+
+// ---------------------------------------------------------- the dialog ----
+
+function suggestPassword() {
+    const words = ['victoria', 'walkerton', 'kilmer', 'saugeen', 'bruce', 'durham'];
+    const w = words[Math.floor(Math.random() * words.length)];
+    return `${w}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function openAdd() {
+    mode = 'add'; targetId = null;
+    el('mTitle').textContent = 'Add staff member';
+    for (const id of ['fName', 'fEmail', 'fRole']) el(id).classList.remove('hide');
+    el('mName').value = ''; el('mEmail').value = ''; el('mRole').value = 'staff';
+    el('mPass').value = suggestPassword();
+    el('mErr').classList.add('hide');
+    el('overlay').classList.add('open');
+    el('mName').focus();
+}
+
+function openReset(member) {
+    mode = 'reset'; targetId = member.id;
+    el('mTitle').textContent = `Reset password — ${member.name}`;
+    for (const id of ['fName', 'fEmail', 'fRole']) el(id).classList.add('hide');
+    el('mPass').value = suggestPassword();
+    el('mErr').classList.add('hide');
+    el('overlay').classList.add('open');
+    el('mPass').focus();
+}
+
+el('addBtn').onclick = openAdd;
+el('mCancel').onclick = () => el('overlay').classList.remove('open');
+el('overlay').onclick = (e) => { if (e.target === el('overlay')) el('overlay').classList.remove('open'); };
+
+el('mSave').onclick = async () => {
+    const btn = el('mSave');
+    btn.disabled = true;
+    el('mErr').classList.add('hide');
+    const password = el('mPass').value;
+
+    try {
+        if (mode === 'add') {
+            await api('/api/staff', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: el('mName').value, email: el('mEmail').value,
+                    role: el('mRole').value, password,
+                }),
+            });
+        } else {
+            await api('/api/staff/password', {
+                method: 'POST',
+                body: JSON.stringify({ id: targetId, password }),
+            });
+        }
+        el('overlay').classList.remove('open');
+        // The temporary password only exists here, so make it easy to hand over.
+        await Portal.copy(password, 'Saved — temporary password copied');
+        load();
+    } catch (e) {
+        el('mErr').textContent = e.message;
+        el('mErr').classList.remove('hide');
+    } finally {
+        btn.disabled = false;
+    }
+};
+</script>
+</body>
+</html>

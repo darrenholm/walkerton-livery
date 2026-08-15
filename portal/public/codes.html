@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room codes — Livery Staff Portal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%94%91</text></svg>">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="wrap" id="main" hidden>
+    <div class="page-title">
+        <h1>Room codes</h1>
+        <p>Codes work on the keypad straight away — no gateway needed.</p>
+    </div>
+
+    <div id="err" class="err hide"></div>
+
+    <div class="card">
+        <h2>1 · Room <span style="text-transform:none;letter-spacing:0;font-weight:400">— tap more than one for a guest taking several</span></h2>
+        <div class="rooms" id="rooms"><div class="empty">Loading rooms…</div></div>
+    </div>
+
+    <div class="card">
+        <h2>2 · Stay</h2>
+        <div class="fields">
+            <div class="f wide">
+                <label for="guest">Guest name</label>
+                <input id="guest" placeholder="e.g. Dave Miller — Bruce Power" maxlength="60">
+            </div>
+            <div class="f">
+                <label for="inDate">Check-in</label>
+                <input id="inDate" type="date">
+            </div>
+            <div class="f">
+                <label for="outDate">Check-out</label>
+                <input id="outDate" type="date">
+            </div>
+            <div class="f wide">
+                <div class="chips" id="presets"></div>
+            </div>
+        </div>
+        <button class="btn btn-block" id="go" style="margin-top:18px">Create code</button>
+    </div>
+
+    <div class="card result hide" id="result"></div>
+
+    <div class="card hide" id="existingCard">
+        <h2 id="existingTitle">Codes on this room</h2>
+        <div id="existing" class="stack"></div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+const { el, api, escapeHtml, toDateInput, atHour, fmtFull, fmtDay, showError, toast, copy } = Portal;
+
+let rooms = [];
+// A guest can take more than one unit for the same nights (Expedia multi-room
+// bookings do this), so selection is a set and one message covers them all.
+let picked = new Set();
+
+(async () => {
+    if (!await Portal.start('codes.html')) return;
+    el('main').hidden = false;
+
+    el('presets').innerHTML = [1, 2, 3, 7, 14, 30]
+        .map(n => `<button class="chip" data-n="${n}">${
+            n === 7 ? '1 week' : n === 14 ? '2 weeks' : n === 30 ? '1 month'
+            : n + (n === 1 ? ' night' : ' nights')}</button>`).join('');
+    el('presets').onclick = (e) => {
+        const n = e.target.closest('.chip')?.dataset.n;
+        if (n) setNights(Number(n));
+    };
+
+    el('inDate').value = toDateInput(new Date());
+    setNights(1);
+
+    try {
+        const data = await api('/api/rooms');
+        rooms = data.rooms;
+        drawRooms();
+        if (rooms.length === 1) pick(rooms[0].lockId);
+    } catch (e) {
+        showError(el('err'), e.message);
+        el('rooms').innerHTML = '<div class="empty">Could not load rooms.</div>';
+    }
+})();
+
+// ------------------------------------------------------------- rooms ----
+
+function drawRooms() {
+    if (!rooms.length) {
+        el('rooms').innerHTML = '<div class="empty">No locks in this TTLock account.</div>';
+        return;
+    }
+    el('rooms').innerHTML = rooms.map(r => `
+      <div class="room ${picked.has(r.lockId) ? 'on' : ''}" data-id="${r.lockId}">
+        <div class="rn">${escapeHtml(r.name)}</div>
+        <div class="rb ${r.battery != null && r.battery <= 25 ? 'low' : ''}">
+          ${r.battery != null ? r.battery + '% battery' : '&nbsp;'}
+        </div>
+      </div>`).join('');
+
+    el('go').textContent = picked.size > 1
+        ? `Create ${picked.size} codes` : 'Create code';
+}
+
+el('rooms').onclick = (e) => {
+    const id = e.target.closest('.room')?.dataset.id;
+    if (id) pick(Number(id));
+};
+
+function pick(lockId) {
+    if (picked.has(lockId)) picked.delete(lockId);
+    else picked.add(lockId);
+    drawRooms();
+    loadExisting();
+}
+
+const pickedRooms = () => rooms.filter(r => picked.has(r.lockId));
+
+// ---------------------------------------------------------- generate ----
+
+function setNights(n) {
+    if (!el('inDate').value) el('inDate').value = toDateInput(new Date());
+    const [y, m, d] = el('inDate').value.split('-').map(Number);
+    const out = new Date(y, m - 1, d);
+    out.setDate(out.getDate() + n);
+    el('outDate').value = toDateInput(out);
+}
+
+el('inDate').addEventListener('change', () => {
+    if (el('outDate').value && el('outDate').value <= el('inDate').value) setNights(1);
+});
+
+async function create() {
+    el('err').classList.add('hide');
+    if (!picked.size) return showError(el('err'), 'Pick at least one room.');
+    if (!el('guest').value.trim()) return showError(el('err'), 'Enter a guest name.');
+    if (!el('inDate').value || !el('outDate').value) {
+        return showError(el('err'), 'Set check-in and check-out dates.');
+    }
+
+    const startDate = atHour(el('inDate').value, Portal.defaults.checkinHour);
+    const endDate = atHour(el('outDate').value, Portal.defaults.checkoutHour);
+    if (endDate <= startDate) return showError(el('err'), 'Check-out must be after check-in.');
+
+    const guest = el('guest').value.trim();
+    const targets = pickedRooms();
+    const btn = el('go');
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+
+    // Issued one at a time so a failure on the third room does not throw away
+    // the two that already worked — each is a separate code on a separate lock.
+    const done = [];
+    const failed = [];
+    for (const room of targets) {
+        try {
+            done.push(await api('/api/passcode', {
+                method: 'POST',
+                body: JSON.stringify({ lockId: room.lockId, guest, startDate, endDate }),
+            }));
+        } catch (e) {
+            failed.push(`${room.name}: ${e.message}`);
+        }
+    }
+
+    if (done.length) drawResult(done, guest);
+    if (failed.length) showError(el('err'), 'Could not create — ' + failed.join('; '));
+    loadExisting();
+
+    btn.disabled = false;
+    drawRooms();
+}
+el('go').onclick = create;
+
+function guestMessage(codes, guest) {
+    const p = Portal.defaults.property || {};
+    const first = guest.split(/[\s—-]/)[0];
+    const one = codes.length === 1;
+
+    const lines = one
+        ? [`Room: ${codes[0].room}`, `Door code: ${codes[0].passcode}#`]
+        : ['Your rooms and door codes:',
+           ...codes.map(c => `  ${c.room} — ${c.passcode}#`)];
+
+    return `Hi ${first}, you're all set at ${p.name || 'the Walkerton Livery'}.
+
+${lines.join('\n')}
+
+Check-in: ${fmtFull(codes[0].startDate)}
+Check-out: ${fmtFull(codes[0].endDate)}
+
+Enter the code on the keypad and press #.
+
+Parking: ${p.parking || ''}
+
+We're at ${p.address || '11 Victoria St S, Walkerton'}. Safe travels!`;
+}
+
+function drawResult(codes, guest) {
+    const box = el('result');
+    const one = codes.length === 1;
+    const message = guestMessage(codes, guest);
+
+    box.classList.remove('hide');
+    box.innerHTML = `
+      <h2>${escapeHtml(guest)} · ${codes.length} room${one ? '' : 's'}</h2>
+      ${one
+        ? `<div class="bigcode">${escapeHtml(codes[0].passcode)}</div>`
+        : `<div class="multi">${codes.map(c => `
+             <div class="multi-one">
+               <div class="multi-room">${escapeHtml(c.room)}</div>
+               <div class="multi-code">${escapeHtml(c.passcode)}</div>
+             </div>`).join('')}</div>`}
+      <div class="code-when">Works <b>${fmtFull(codes[0].startDate)}</b> → <b>${fmtFull(codes[0].endDate)}</b></div>
+      <div class="msg" id="guestMsg">${escapeHtml(message)}</div>
+      <div class="row-btns">
+        <button class="btn" id="copyCode">Copy ${one ? 'code' : 'codes'}</button>
+        <button class="btn btn-quiet" id="copyMsg">Copy message</button>
+        <a class="btn btn-quiet" href="sms:?&body=${encodeURIComponent(message)}">Text guest</a>
+      </div>
+      <div class="note">
+        Live on the keypad now. ${one ? 'It' : 'They'} must be used once before
+        <b>${fmtFull(codes[0].useByDate)}</b> or the lock drops ${one ? 'it' : 'them'}.
+      </div>`;
+
+    el('copyCode').onclick = () => copy(
+        one ? codes[0].passcode : codes.map(c => `${c.room}: ${c.passcode}#`).join('\n'),
+        one ? 'Code copied' : 'Codes copied');
+    el('copyMsg').onclick = () => copy(el('guestMsg').textContent, 'Message copied');
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ---------------------------------------------------------- existing ----
+
+async function loadExisting() {
+    if (!picked.size) { el('existingCard').classList.add('hide'); return; }
+
+    el('existingCard').classList.remove('hide');
+    el('existingTitle').textContent = picked.size > 1
+        ? `Codes on these ${picked.size} rooms` : 'Codes on this room';
+    el('existing').innerHTML = '<div class="empty">Loading…</div>';
+    try {
+        const perRoom = await Promise.all(pickedRooms().map(async (room) => {
+            const { codes } = await api('/api/passcodes?lockId=' + room.lockId);
+            return codes.map(c => ({ ...c, room: room.name, lockId: room.lockId }));
+        }));
+        drawExisting(perRoom.flat().sort((a, b) => b.startDate - a.startDate));
+    } catch (e) {
+        el('existing').innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function drawExisting(codes) {
+    if (!codes.length) {
+        el('existing').innerHTML = '<div class="empty">No dated codes on '
+            + (picked.size > 1 ? 'these rooms' : 'this room') + ' yet.</div>';
+        return;
+    }
+    const now = Date.now();
+    const multi = picked.size > 1;
+    el('existing').innerHTML = `
+      <table>
+        <thead><tr>${multi ? '<th>Room</th>' : ''}<th>Guest</th><th>Code</th><th>Stay</th><th>Issued by</th><th></th><th></th></tr></thead>
+        <tbody>${codes.map(c => {
+            const tag = c.expired ? '<span class="tag past">Expired</span>'
+                : c.startDate > now ? '<span class="tag soon">Upcoming</span>'
+                : '<span class="tag now">Active</span>';
+            return `<tr>
+              ${multi ? `<td data-l="Room"><b>${escapeHtml(c.room)}</b></td>` : ''}
+              <td data-l="Guest">${escapeHtml(c.name) || '—'}</td>
+              <td data-l="Code" class="mono">${escapeHtml(c.passcode || '••••')}</td>
+              <td data-l="Stay" class="dim">${fmtDay(c.startDate)} → ${fmtDay(c.endDate)}</td>
+              <td data-l="Issued by" class="dim">${escapeHtml(c.issuedBy) || '<span style="opacity:.6">TTLock app</span>'}</td>
+              <td data-l="Status">${tag}</td>
+              <td class="right">${c.expired ? '' :
+                `<button class="btn btn-danger btn-sm" data-revoke="${c.keyboardPwdId}"
+                         data-lock="${c.lockId}" data-guest="${escapeHtml(c.name)}">Revoke</button>`}</td>
+            </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+}
+
+el('existing').onclick = async (e) => {
+    const btn = e.target.closest('[data-revoke]');
+    if (!btn) return;
+    if (!confirm('Revoke this code? The guest will not be able to get in.')) return;
+
+    btn.disabled = true;
+    try {
+        const r = await api('/api/passcode/delete', {
+            method: 'POST',
+            body: JSON.stringify({
+                lockId: Number(btn.dataset.lock),
+                keyboardPwdId: Number(btn.dataset.revoke),
+                guest: btn.dataset.guest,
+            }),
+        });
+        toast(r.needsBluetooth
+            ? 'Removed — open the TTLock app near the lock to finish'
+            : 'Code revoked');
+        loadExisting();
+    } catch (err) {
+        showError(el('err'), err.message);
+        btn.disabled = false;
+    }
+};
+</script>
+</body>
+</html>

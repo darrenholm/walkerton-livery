@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activity — Livery Staff Portal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%94%91</text></svg>">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="wrap" id="main" hidden>
+    <div class="page-title">
+        <h1>Activity</h1>
+        <p>Everything the portal has done, newest first.</p>
+    </div>
+
+    <div id="err" class="err hide"></div>
+
+    <div class="card">
+        <div class="fields" style="grid-template-columns:1fr 1fr auto;align-items:end">
+            <div class="f">
+                <label for="who">Staff member</label>
+                <select id="who"><option value="">Everyone</option></select>
+            </div>
+            <div class="f">
+                <label for="what">Action</label>
+                <select id="what">
+                    <option value="">All actions</option>
+                    <option value="issue">Codes issued</option>
+                    <option value="revoke">Codes revoked</option>
+                    <option value="login">Sign-ins</option>
+                    <option value="staff">Staff changes</option>
+                </select>
+            </div>
+            <div class="f">
+                <button class="btn btn-quiet" id="reload">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div id="log" class="stack"><div class="empty">Loading…</div></div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+const { el, api, escapeHtml, fmtDay, fmtStamp, showError } = Portal;
+
+let entries = [];
+
+const LABEL = {
+    issue: ['Code issued', 'now'],
+    revoke: ['Code revoked', 'off'],
+    login: ['Signed in', 'past'],
+    'password-change': ['Password changed', 'past'],
+    'staff-add': ['Staff added', 'adm'],
+    'staff-update': ['Staff updated', 'adm'],
+    'staff-remove': ['Staff removed', 'adm'],
+    'staff-reset-password': ['Password reset', 'adm'],
+};
+
+(async () => {
+    const me = await Portal.start('activity.html');
+    if (!me) return;
+    el('main').hidden = false;
+
+    // The staff filter needs the roster, which only admins may read; everyone
+    // else just gets the unfiltered log.
+    if (me.role === 'admin') {
+        try {
+            const { staff } = await api('/api/staff');
+            el('who').insertAdjacentHTML('beforeend', staff
+                .map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join(''));
+        } catch { /* filter stays as "Everyone" */ }
+    } else {
+        el('who').closest('.f').classList.add('hide');
+    }
+
+    load();
+})();
+
+el('reload').onclick = () => load();
+el('who').onchange = () => load();
+el('what').onchange = () => draw();
+
+async function load() {
+    el('log').innerHTML = '<div class="empty">Loading…</div>';
+    try {
+        const q = el('who').value ? '?limit=500&staffId=' + encodeURIComponent(el('who').value) : '?limit=500';
+        entries = (await api('/api/activity' + q)).activity;
+        draw();
+    } catch (e) {
+        showError(el('err'), e.message);
+        el('log').innerHTML = '<div class="empty">Could not load activity.</div>';
+    }
+}
+
+function draw() {
+    const filter = el('what').value;
+    const rows = entries.filter(a =>
+        !filter || (filter === 'staff' ? a.action.startsWith('staff') : a.action === filter));
+
+    if (!rows.length) {
+        el('log').innerHTML = '<div class="empty">Nothing matches that filter.</div>';
+        return;
+    }
+
+    el('log').innerHTML = `
+      <table>
+        <thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
+        <tbody>${rows.map(a => {
+            const [label, tone] = LABEL[a.action] || [a.action, 'past'];
+            return `<tr>
+              <td data-l="When" class="dim" style="white-space:nowrap">${fmtStamp(a.at)}</td>
+              <td data-l="Who"><b>${escapeHtml(a.staffName)}</b></td>
+              <td data-l="What"><span class="tag ${tone}">${escapeHtml(label)}</span></td>
+              <td data-l="Details" class="dim">${details(a)}</td>
+            </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+}
+
+function details(a) {
+    if (a.action === 'issue') {
+        return `${escapeHtml(a.room)} — ${escapeHtml(a.guest)}
+                <span style="opacity:.7">(${fmtDay(a.startDate)} → ${fmtDay(a.endDate)})</span>`;
+    }
+    if (a.action === 'revoke') {
+        return escapeHtml(a.room) + (a.guest ? ' — ' + escapeHtml(a.guest) : '');
+    }
+    return escapeHtml(a.detail || '');
+}
+</script>
+</body>
+</html>
