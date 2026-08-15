@@ -54,6 +54,7 @@ function usage() {
     list
     add <name> <email> <role: admin|staff> [password]   [--force-change]
     password <email> <password>                         [--force-change]
+    role <email> <admin|staff>
     disable <email>
     enable <email>
     remove <email>
@@ -132,6 +133,26 @@ const commands = {
         });
         await store.save();
         console.log(`\n  Password set for ${member.name}. Any open sessions were signed out.\n`);
+    },
+
+    async role(email, role) {
+        if (!email || !role) die('Usage: role <email> <admin|staff>');
+        if (role !== 'admin' && role !== 'staff') die("Role must be 'admin' or 'staff'.");
+
+        const member = findOrDie(email);
+        if (member.role === role) {
+            console.log(`\n  ${member.name} is already ${role}.\n`);
+            return;
+        }
+        if (member.role === 'admin' && store.activeAdminCount(member.id) === 0) {
+            die('That is the only admin — promote someone else first.');
+        }
+
+        // Matches the web UI: a role change signs the account out so the new
+        // permissions are picked up on the next sign-in.
+        store.updateStaff(member.id, { role, sessionEpoch: member.sessionEpoch + 1 });
+        await store.save();
+        console.log(`\n  ${member.name} is now ${role}. They will need to sign in again.\n`);
     },
 
     async disable(email) {

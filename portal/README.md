@@ -63,6 +63,7 @@ node bin/staff.js list
 node bin/staff.js add "Darren Holm" darren@walkertonlivery.ca admin 'Kilmer@73'
 node bin/staff.js add "Brady" brady@walkertonlivery.ca staff 'Kilmer@73'
 node bin/staff.js password brady@walkertonlivery.ca 'new-password'
+node bin/staff.js role brady@walkertonlivery.ca admin
 node bin/staff.js disable brady@walkertonlivery.ca
 node bin/staff.js remove brady@walkertonlivery.ca
 ```
@@ -135,6 +136,6 @@ session invalidation, last-admin guards, hour flooring, token
 refresh-and-retry, the activity log, and path traversal.
 
 `cli.js` covers `bin/staff.js`: account creation, password rules, hashing,
-resets, disable/enable, and the last-admin guard.
+resets, role changes, disable/enable, and the last-admin guard.
 
 No credentials or network needed for either.

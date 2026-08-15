@@ -138,7 +138,44 @@ r = run('enable', 'brady@walkertonlivery.ca');
 check('account can be re-enabled', () =>
     assert.strictEqual(find('brady@walkertonlivery.ca').active, true));
 
+console.log('\nchanging role');
+
+const beforeRole = find('brady@walkertonlivery.ca');
+r = run('role', 'brady@walkertonlivery.ca', 'admin');
+check('front desk can be promoted to admin', () => {
+    assert.ok(r.ok, r.out);
+    assert.strictEqual(find('brady@walkertonlivery.ca').role, 'admin');
+});
+check('promoting signs them out so the new role takes effect', () =>
+    assert.ok(find('brady@walkertonlivery.ca').sessionEpoch > beforeRole.sessionEpoch));
+
+r = run('role', 'brady@walkertonlivery.ca', 'admin');
+check('re-setting the same role is a no-op, not an error', () => {
+    assert.ok(r.ok, r.out);
+    assert.match(r.out, /already admin/);
+});
+
+r = run('role', 'brady@walkertonlivery.ca', 'wizard');
+check('unknown role refused', () => assert.ok(!r.ok));
+
+r = run('disable', 'darren@walkertonlivery.ca');
+check('with a second admin, the first can now be disabled', () => assert.ok(r.ok, r.out));
+run('enable', 'darren@walkertonlivery.ca');
+
+r = run('role', 'brady@walkertonlivery.ca', 'staff');
+check('admin can be demoted while another admin remains', () => {
+    assert.ok(r.ok, r.out);
+    assert.strictEqual(find('brady@walkertonlivery.ca').role, 'staff');
+});
+
+// Darren is the only admin again from here on.
 console.log('\nlast-admin guard');
+
+r = run('role', 'darren@walkertonlivery.ca', 'staff');
+check('the only admin cannot be demoted', () => {
+    assert.ok(!r.ok);
+    assert.match(r.out, /only admin/);
+});
 
 r = run('disable', 'darren@walkertonlivery.ca');
 check('the only admin cannot be disabled', () => {
