@@ -1,0 +1,299 @@
+/* The Walkerton Livery — one stylesheet, no frameworks, no web fonts.
+   Palette nods to the 1873 livery stable: warm stone, ink, barn red. */
+
+:root {
+    --ink:      #241f1a;
+    --ink-soft: #5f574d;
+    --bg:       #faf7f2;
+    --surface:  #ffffff;
+    --stone:    #efe9e0;
+    --line:     #e2d9cc;
+    --rust:     #9d4126;
+    --rust-dk:  #7d3119;
+    --shadow:   0 1px 2px rgba(36,31,26,.06), 0 8px 24px rgba(36,31,26,.07);
+
+    --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+    --wrap: 1120px;
+    --pad: clamp(20px, 5vw, 48px);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 17px/1.65 var(--sans);
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--rust); }
+a:hover { color: var(--rust-dk); }
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.15; margin: 0 0 .5em; }
+h1 { font-size: clamp(30px, 5vw, 50px); letter-spacing: -.01em; }
+h2 { font-size: clamp(24px, 3.4vw, 34px); }
+h3 { font-size: 20px; }
+p { margin: 0 0 1.1em; }
+
+.skip {
+    position: absolute; left: -9999px; top: 0; z-index: 100;
+    background: var(--ink); color: #fff; padding: 12px 18px;
+}
+.skip:focus { left: 8px; top: 8px; }
+
+:focus-visible { outline: 3px solid var(--rust); outline-offset: 2px; }
+
+/* ------------------------------------------------------------- buttons -- */
+
+.btn {
+    display: inline-block; background: var(--rust); color: #fff;
+    padding: 12px 24px; border-radius: 4px; text-decoration: none;
+    font-weight: 600; font-size: 15px; letter-spacing: .01em;
+    transition: background .15s, transform .15s;
+}
+.btn:hover { background: var(--rust-dk); color: #fff; transform: translateY(-1px); }
+.btn-lg { padding: 16px 34px; font-size: 17px; }
+.btn-quiet {
+    background: transparent; color: var(--rust);
+    border: 1.5px solid var(--rust); padding: 10px 22px;
+}
+.btn-quiet:hover { background: var(--rust); color: #fff; }
+
+/* -------------------------------------------------------------- header -- */
+
+.site-head {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 50;
+}
+.head-inner {
+    max-width: var(--wrap); margin: 0 auto; padding: 10px var(--pad);
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+/* Sized by height, not width, so the header's height is predictable and the
+   mobile menu can anchor to it without a magic number. */
+.brand img { height: 58px; width: auto; }
+
+.site-nav { display: flex; align-items: center; gap: 26px; }
+.site-nav > ul { display: flex; align-items: center; gap: 22px; list-style: none; margin: 0; padding: 0; }
+.site-nav a {
+    color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 500;
+    padding: 6px 0; display: inline-flex; align-items: center; gap: 4px;
+    border-bottom: 2px solid transparent;
+}
+.site-nav a:hover, .site-nav a.active { color: var(--rust); border-bottom-color: var(--rust); }
+.btn-book { color: #fff !important; border: 0 !important; padding: 11px 22px !important; }
+.btn-book:hover { color: #fff !important; }
+
+.chev { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.4; }
+
+.has-sub { position: relative; }
+.sub {
+    position: absolute; left: -14px; top: 100%; min-width: 208px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+    box-shadow: var(--shadow); padding: 8px 0; list-style: none; margin: 0;
+    opacity: 0; visibility: hidden; transform: translateY(-4px);
+    transition: opacity .14s, transform .14s, visibility .14s;
+}
+.has-sub:hover .sub, .has-sub:focus-within .sub { opacity: 1; visibility: visible; transform: none; }
+.sub a { display: block; padding: 8px 18px; border: 0; }
+.sub a:hover { background: var(--stone); border: 0; }
+
+.burger { display: none; background: none; border: 0; padding: 10px; cursor: pointer; }
+.burger span { display: block; width: 24px; height: 2px; background: var(--ink); margin: 5px 0; transition: .2s; }
+
+/* ---------------------------------------------------------------- hero -- */
+
+.hero { position: relative; background: var(--ink); }
+.hero-img { width: 100%; height: clamp(340px, 58vh, 580px); object-fit: cover; opacity: .78; }
+/* Darken toward the middle so the headline keeps contrast over the building's
+   bright windows without flattening the whole photo. */
+.hero::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 78% 68% at 50% 50%,
+        rgba(20,16,12,.72) 0%, rgba(20,16,12,.52) 55%, rgba(20,16,12,.28) 100%);
+}
+.hero-inner {
+    position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 0 var(--pad); color: #fff;
+}
+.hero-inner h1 { color: #fff; max-width: 18ch; text-shadow: 0 2px 18px rgba(0,0,0,.5); margin-bottom: .8em; }
+.eyebrow {
+    text-transform: uppercase; letter-spacing: .18em; font-size: 12px;
+    font-weight: 700; color: #f0d9c9; margin-bottom: 1.4em;
+}
+
+.page-head {
+    background: var(--stone); border-bottom: 1px solid var(--line);
+    padding: clamp(38px, 6vw, 66px) var(--pad);
+    text-align: center;
+}
+.page-head h1 { margin: 0; }
+.lede { color: var(--ink-soft); font-size: 19px; margin: .6em 0 0; }
+
+/* --------------------------------------------------------------- bands -- */
+
+.band { padding: clamp(40px, 6vw, 76px) var(--pad); }
+.band.alt { background: var(--stone); }
+
+.prose { max-width: 68ch; margin: 0 auto; }
+.prose.center { text-align: center; }
+.prose.center h2 { margin-bottom: .6em; }
+.soon p:first-child { font-family: var(--serif); font-size: 26px; color: var(--ink-soft); }
+
+.split {
+    max-width: var(--wrap); margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 56px); align-items: center;
+}
+.split img { border-radius: 6px; box-shadow: var(--shadow); }
+.split .prose { margin: 0; }
+
+/* ----------------------------------------------------------- amenities -- */
+
+.wrap-head { max-width: var(--wrap); margin: 0 auto; }
+
+.amenities {
+    max-width: var(--wrap); margin: 34px auto 0; padding: 0; list-style: none;
+    /* Six items: three across reads as two even rows rather than 4 + 2. */
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+}
+@media (max-width: 860px) { .amenities { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .amenities { grid-template-columns: 1fr; } }
+.amenities li {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; font-size: 15.5px; font-weight: 500;
+}
+.amenities svg {
+    width: 26px; height: 26px; flex: none;
+    fill: none; stroke: var(--rust); stroke-width: 1.7;
+    stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ------------------------------------------------------------- gallery -- */
+
+.gallery {
+    max-width: var(--wrap); margin: 0 auto;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;
+}
+.shot { display: block; border-radius: 6px; overflow: hidden; box-shadow: var(--shadow); }
+.shot img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; transition: transform .3s; }
+.shot:hover img { transform: scale(1.03); }
+
+/* --------------------------------------------------------------- lists -- */
+
+.tick { list-style: none; padding: 0; margin: 0; columns: 2; column-gap: 40px; }
+.tick li { padding: 9px 0 9px 28px; position: relative; break-inside: avoid; border-bottom: 1px solid var(--line); }
+.tick li::before {
+    content: ''; position: absolute; left: 4px; top: 17px;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--rust);
+}
+
+.cards {
+    max-width: var(--wrap); margin: 0 auto;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;
+}
+.card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 26px 24px; text-decoration: none; color: var(--ink);
+    box-shadow: var(--shadow); transition: transform .15s, border-color .15s;
+}
+.card:hover { transform: translateY(-3px); border-color: var(--rust); color: var(--ink); }
+.card h3 { color: var(--rust); margin-bottom: .35em; }
+.card p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+
+/* ------------------------------------------------------------- contact -- */
+
+.contact {
+    max-width: 940px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;
+}
+.contact-item {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 30px 24px; text-align: center; text-decoration: none; color: var(--ink);
+    box-shadow: var(--shadow); transition: transform .15s, border-color .15s;
+}
+.contact-item:hover { transform: translateY(-3px); border-color: var(--rust); color: var(--ink); }
+.contact-item svg {
+    width: 30px; height: 30px; margin: 0 auto 14px;
+    fill: none; stroke: var(--rust); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+}
+.contact-item .k {
+    display: block; text-transform: uppercase; letter-spacing: .12em;
+    font-size: 11px; font-weight: 700; color: var(--ink-soft); margin-bottom: 8px;
+}
+.contact-item .v { display: block; font-size: 17px; font-weight: 500; }
+
+/* ----------------------------------------------------------------- cta -- */
+
+.cta {
+    background: var(--ink); color: #fff; text-align: center;
+    padding: clamp(44px, 7vw, 80px) var(--pad);
+}
+.cta h2 { color: #fff; }
+.cta p { color: #d8cfc4; max-width: 52ch; margin: 0 auto 1.8em; }
+
+/* -------------------------------------------------------------- footer -- */
+
+.site-foot { background: var(--stone); border-top: 1px solid var(--line); }
+.foot-inner {
+    max-width: var(--wrap); margin: 0 auto; padding: clamp(36px, 5vw, 60px) var(--pad);
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 36px;
+}
+.foot-logo { width: 150px; margin-bottom: 14px; }
+.foot-tag { color: var(--ink-soft); font-size: 15px; max-width: 30ch; }
+.site-foot h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; font-family: var(--sans); }
+.site-foot p { margin: 0 0 .5em; font-size: 15px; }
+.site-foot a { color: var(--ink); text-decoration: none; }
+.site-foot a:hover { color: var(--rust); text-decoration: underline; }
+.foot-nav { list-style: none; padding: 0; margin: 0; font-size: 15px; }
+.foot-nav li { margin-bottom: .5em; }
+.copy {
+    text-align: center; font-size: 13px; color: var(--ink-soft);
+    border-top: 1px solid var(--line); margin: 0; padding: 20px var(--pad);
+}
+
+/* -------------------------------------------------------------- mobile -- */
+
+@media (max-width: 900px) {
+    .burger { display: block; }
+    /* Anchored to the header itself rather than a fixed offset, so it lands
+       flush under the bar whatever height the logo gives it. */
+    .site-nav {
+        position: absolute; top: 100%; left: 0; right: 0;
+        background: var(--surface);
+        border-bottom: 1px solid var(--line); box-shadow: var(--shadow);
+        flex-direction: column; align-items: stretch; gap: 0;
+        padding: 8px var(--pad) 22px; display: none;
+        max-height: calc(100vh - 100%); overflow-y: auto;
+    }
+    body.nav-open .site-nav { display: flex; }
+    body.nav-open { overflow: hidden; }
+    .site-nav > ul { flex-direction: column; align-items: stretch; gap: 0; }
+    /* Full-width rows so the divider spans the panel, not just the label. */
+    .site-nav > ul > li > a {
+        display: flex; justify-content: space-between;
+        padding: 14px 0; border-bottom: 1px solid var(--line);
+    }
+    .site-nav a:hover, .site-nav a.active { border-bottom-color: var(--line); }
+    .site-nav > ul > li > a.active { color: var(--rust); }
+    .sub {
+        position: static; opacity: 1; visibility: visible; transform: none;
+        border: 0; box-shadow: none; padding: 0 0 8px 16px; display: none;
+    }
+    .has-sub.open .sub { display: block; }
+    .has-sub.open .chev { transform: rotate(180deg); }
+    .btn-book { margin-top: 18px; text-align: center; }
+
+    .split { grid-template-columns: 1fr; }
+    .foot-inner { grid-template-columns: 1fr; gap: 28px; }
+    .tick { columns: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+}
