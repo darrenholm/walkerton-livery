@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const OUT = path.join(__dirname, 'dist');
-const BOOKING = 'https://app.littlehotelier.com/properties/thelivery';
+const BOOKING = 'https://book.walkertonlivery.ca';
 const PHONE = '226-840-6727';
 const EMAIL = 'frontdesk@walkertonlivery.ca';
 const ADDRESS = '11 Victoria St. S, Walkerton, Ontario';
